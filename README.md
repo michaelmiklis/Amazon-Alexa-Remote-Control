@@ -27,6 +27,7 @@ It will return all set up alarms, the device serial number and the alarm state (
 	   -S : list Prime stations
 	   -a : list available devices
 	   -m : delete multiroom and/or create new multiroom containing devices
+	   -n : list alarms and notifications
 	   -lastalexa : print device that received the last voice command
 	   -l : logoff
 	   -h : help
@@ -57,4 +58,5 @@ It will return all set up alarms, the device serial number and the alarm state (
 	  (Markus Wennesheimer: https://wennez.wordpress.com/light-on-with-alexa-for-each-room/)
 	 2018-02-27: v0.9 unsuccessful logins will now give a short info how to debug the login
 	 2018-03-09: v0.9a workaround for login problem, force curl to use http1.1
+	 2018-03-12: v0.10 added support for alarms and notfications (-n parameter)
 

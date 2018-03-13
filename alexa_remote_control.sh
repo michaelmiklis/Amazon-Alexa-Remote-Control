@@ -27,6 +27,7 @@
 #		(Markus Wennesheimer: https://wennez.wordpress.com/light-on-with-alexa-for-each-room/)
 # 2018-02-27: v0.9 unsuccessful logins will now give a short info how to debug the login
 # 2018-03-09: v0.9a workaround for login problem, force curl to use http1.1
+# 2018-03-12: v0.10 added support for alarms and notfications (-n parameter)
 #
 ###
 #
@@ -68,6 +69,8 @@ BROWSER='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:58.0) Gecko/20100101 Firef
 TMP="/tmp"
 COOKIE="${TMP}/.alexa.cookie"
 DEVLIST="${TMP}/.alexa.devicelist.json"
+NOTIFYLIST="${TMP}/.alexa.notification.json"
+
 
 GUIVERSION=0
 
@@ -106,6 +109,7 @@ usage()
 	echo "   -S : list Prime stations"
 	echo "   -a : list available devices"
 	echo "   -m : delete multiroom and/or create new multiroom containing devices"
+	echo "   -n : list alarms and notifications"
 	echo "   -lastalexa : print device that received the last voice command"
 	echo "   -l : logoff"
 	echo "   -h : help"
@@ -221,6 +225,9 @@ while [ "$#" -gt 0 ] ; do
 		-a)
 			LIST="true"
 			;;
+		-n)
+			NOTIFY="true"
+			;;
 		-i)
 			TYPE="IMPORTED"
 			;;
@@ -308,6 +315,7 @@ log_in()
 ################################################################
 
 rm -f ${DEVLIST}
+rm -f ${NOTIFYLIST}
 rm -f ${COOKIE}
 rm -f ${TMP}/.alexa.*.list
 
@@ -371,6 +379,18 @@ ${CURL} ${OPTS} -s -b ${COOKIE} -A "${BROWSER}" -H "DNT: 1" -H "Connection: keep
  "https://${ALEXA}/api/devices-v2/device?cached=false" > ${DEVLIST}
 }
 
+#
+# get JSON notification list
+#
+get_notifylist()
+{
+${CURL} ${OPTS} -s -b ${COOKIE} -A "${BROWSER}" -H "DNT: 1" -H "Connection: keep-alive" -L\
+ -H "Content-Type: application/json; charset=UTF-8" -H "Referer: https://alexa.${AMAZON}/spa/index.html" -H "Origin: https://alexa.${AMAZON}"\
+ -H "csrf: $(awk "\$0 ~/.${AMAZON}.*csrf[ \\s\\t]+/ {print \$7}" ${COOKIE})"\
+ "https://${ALEXA}/api/notifications?cached=false" > ${NOTIFYLIST}
+}
+
+
 check_status()
 {
 #
@@ -416,6 +436,14 @@ set_var()
 list_devices()
 {
 	jq -r '.devices[].accountName' ${DEVLIST}
+}
+
+#
+# list notifications from JSON notification list
+#
+list_notifications()
+{
+	jq -r '.notifications[] | "\(.deviceSerialNumber) \(.originalTime) \(.status)"' ${NOTIFYLIST}
 }
 
 #
@@ -701,6 +729,15 @@ if [ ! -f ${DEVLIST} ] ; then
 	fi
 fi
 
+if [ ! -f ${NOTIFYLIST} ] ; then
+	echo "notification list does not exist. downloading ..."
+	get_notifylist
+	if [ ! -f ${NOTIFYLIST} ] ; then
+		echo "failed to download notification list, aborting"
+		exit 1
+	fi
+fi
+
 if [ -n "$COMMAND" -o -n "$QUEUE" ] ; then
 	if [ "${DEVICE}" = "ALL" ] ; then
 		for DEVICE in $(jq -r '.devices[] | select( .deviceFamily == "ECHO" or .deviceFamily == "KNIGHT" or .deviceFamily == "ROOK" or .deviceFamily == "WHA") | .accountName' ${DEVLIST} | sed -r 's/ /%20/g') ; do
@@ -778,6 +815,9 @@ elif [ -n "$PLIST" ] ; then
 elif [ -n "$LIST" ] ; then
 	echo "the following devices exist in your account:"
 	list_devices
+elif [ -n "$NOTIFY" ] ; then
+	echo "the following notifications exist in your account:"
+	list_notifications
 elif [ -n "$TYPE" ] ; then
 	set_var
 	echo -n "the following songs exist in your ${TYPE} library: "
